@@ -1,0 +1,27 @@
+# Python environments
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+
+# Generated data (do not commit large .npy files)
+data/
+
+# Experimental TIF volumes (too large for GitHub, >100MB)
+data_tif/
+
+# Claude Code session files
+.claude/
+
+# Build artifacts
+dist/
+build/
+
+# IDE
+.vscode/settings.json
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

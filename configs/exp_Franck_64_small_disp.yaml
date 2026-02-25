@@ -1,0 +1,86 @@
+# Experimental Dataset — Franck confocal beads, 64^3 with SMALL displacements
+# Pipeline B: crop sub-volumes from real TIF images + synthetic deformation
+#
+# Purpose: Test whether displacement magnitude mismatch causes poor 64^3
+# predictions when trained on 32^3 data with small displacements.
+
+source_type: crop_from_image
+
+dataset:
+  name: exp_Franck_64_small_disp
+  output_dir: data/exp_Franck_64_small_disp
+  volume_shape: [64, 64, 64]
+
+generation:
+  seed: 56231
+  parallel: false
+  num_workers: 4
+  save_metadata: true
+  visualize_samples: true
+  num_visualize: 5
+
+splits:
+  train: 0
+  val: 0
+  test: 50
+
+warp_mode: backward_swap
+
+# --- Deformations: SMALL displacements matching synthetic_32_v3 training data ---
+deformations:
+  type_probabilities:
+    affine: 0.6
+    bspline: 0.4
+    localized: 0.0
+    combined: 0.0
+
+  affine:
+    translation_max: 0.75
+    rotation_max: 5
+    scale_min: 0.97
+    scale_max: 1.03
+    shear_max: 0.02
+
+  bspline:
+    control_grid_size: [8, 8, 8]
+    displacement_max: 1.5
+    displacement_min: 0.25
+    smoothness: 0.8
+
+  localized:
+    num_centers_min: 1
+    num_centers_max: 2
+    center_displacement_max: 16.0
+    radius_of_influence_min: 24
+    radius_of_influence_max: 48
+    decay_exponent: 2.0
+
+  combined:
+    affine_weight: 0.3
+    bspline_weight: 0.7
+
+quality:
+  min_visible_beads_ratio: 0.0
+  max_displacement_ratio: 0.5
+
+# --- crop_from_image only ---
+input:
+  format: tif
+  raw_data_dir: data_tif/exp_Franck
+  file_pattern: "*.tif"
+  file_pattern_alternative: "*.tiff"
+  min_volume_size: [64, 64, 64]
+
+extraction:
+  volume_size: [64, 64, 64]
+  strategy: random
+  total_volumes: 50
+  margin: 5
+  min_mean_intensity: 0.0
+  min_std_intensity: 0.0
+
+preprocessing:
+  normalize: true
+  clip_percentile: [1, 99]
+  denoise: false
+  denoise_sigma: 0.5

@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dvc-dataset-generator"
+version = "0.1.0"
+description = "3D DVC Dataset Generator — synthetic and semi-synthetic volumetric image pairs for DVC/optical-flow training"
+requires-python = ">=3.9"
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "pyyaml>=6.0",
+    "tqdm>=4.60",
+    "tifffile>=2023.1",
+]
+
+[project.optional-dependencies]
+viz = [
+    "matplotlib>=3.7",
+    "pyvista>=0.42",
+]
+hdf5 = ["h5py>=3.8"]
+zarr  = ["zarr>=2.16"]
+all   = [
+    "matplotlib>=3.7",
+    "pyvista>=0.42",
+    "h5py>=3.8",
+    "zarr>=2.16",
+]
+
+# CLI entry point: after `pip install -e .`, run from anywhere:
+#   generate-dataset --config configs/synthetic_128_v2.yaml
+[project.scripts]
+generate-dataset = "dvc_generator.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["dvc_generator*"]

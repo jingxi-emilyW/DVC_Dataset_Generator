@@ -1,0 +1,89 @@
+# Synthetic Confocal Particle Dataset — 128^3 v1
+# Pipeline A: procedural bead generation + imaging simulation
+
+source_type: synthetic
+
+dataset:
+  name: confocal_particles_128_v1
+  output_dir: data/synthetic_confocal_128_v1
+  volume_shape: [128, 128, 128]
+
+generation:
+  seed: 42
+  parallel: false
+  num_workers: 8
+  save_metadata: true
+  visualize_samples: true
+  num_visualize: 5
+
+splits:
+  train: 800
+  val: 100
+  test: 100
+
+# --- Deformations (shared schema) ---
+deformations:
+  type_probabilities:
+    affine: 0.6
+    bspline: 0.4
+    localized: 0.0
+    combined: 0.0
+
+  affine:
+    translation_max: 3.0
+    rotation_max: 5
+    scale_min: 0.97
+    scale_max: 1.03
+    shear_max: 0.02
+
+  bspline:
+    control_grid_size: [8, 8, 8]
+    displacement_max: 5
+    displacement_min: 1
+    smoothness: 0.8
+
+  localized:
+    num_centers_min: 1
+    num_centers_max: 3
+    center_displacement_max: 20.0
+    radius_of_influence_min: 30
+    radius_of_influence_max: 50
+    decay_exponent: 2.0
+
+  combined:
+    affine_weight: 0.3
+    bspline_weight: 0.7
+
+quality:
+  min_visible_beads_ratio: 0.7
+  max_displacement_ratio: 0.5
+
+# --- Synthetic-only sections ---
+particles:
+  radius_min: 2.5
+  radius_max: 3
+  radius_distribution: uniform
+  radius_lognormal_mean: 1.1
+  radius_lognormal_std: 0.3
+  count_min: 400
+  count_max: 1500
+  count_stratified: true
+  intensity_mean: 0.8
+  intensity_std: 0.1
+  intensity_min: 0.1
+  intensity_max: 1.0
+  min_distance_factor: 1.5
+  margin_voxels: 5
+
+imaging:
+  psf_type: gaussian
+  psf_sigma_min: 0
+  psf_sigma_max: 0
+  noise_type: poisson_gaussian
+  snr_db_min: 30
+  snr_db_max: 40
+  background_mean: 0.02
+  background_std: 0.01
+  photobleaching_enabled: true
+  photobleaching_factor_min: 0.95
+  photobleaching_factor_max: 1.0
