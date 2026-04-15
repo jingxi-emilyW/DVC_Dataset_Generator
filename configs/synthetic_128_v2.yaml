@@ -24,7 +24,7 @@ generation:
   num_visualize: 5
 
 splits:
-  train: 100
+  train: 1600
   val: 200
   test: 200
 
