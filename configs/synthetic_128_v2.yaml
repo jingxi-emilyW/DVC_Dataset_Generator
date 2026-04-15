@@ -83,8 +83,7 @@ particles:
   margin_voxels: 3
   gaussian_sharpness: 1.0
 
-  # T2.A1:
-  # Use one fixed anisotropy ratio for the whole dataset/run.
+  #defines deformation of bead: [sz, sy, sx]
   anisotropy: [1.0, 1.0, 1.0]
 
 imaging:
