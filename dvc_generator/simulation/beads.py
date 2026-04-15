@@ -159,8 +159,19 @@ class BeadRenderer:
         # Get Gaussian sharpness parameter (default 2.0 for backward compatibility)
         if config is not None:
             self.gaussian_sharpness = config.get('gaussian_sharpness', 2.0)
+            self.anisotropy = np.asarray(
+                config.get('anisotropy', [1.0, 1.0, 1.0]),
+                dtype=np.float32
+            )
         else:
             self.gaussian_sharpness = 2.0
+            self.anisotropy = np.ones(3, dtype=np.float32)
+
+        if self.anisotropy.shape != (3,):
+            raise ValueError("particles.anisotropy must be [sigma_z, sigma_y, sigma_x]")
+
+        if np.any(self.anisotropy <= 0):
+            raise ValueError("particles.anisotropy values must be positive")
 
     def render(self, beads):
         """
@@ -195,19 +206,21 @@ class BeadRenderer:
         Args:
             volume: (D, H, W) array to render into (modified in-place)
             position: (3,) array - bead center
-            radius: float - bead radius (sigma of Gaussian)
+            radius: float - base bead radius
             intensity: float - peak intensity
         """
-        # Determine bounding box (3 sigma)
-        bbox_radius = int(np.ceil(3 * radius))
+        sigma = radius * self.anisotropy
+
+        # Determine bounding box (3 sigma) for each axis
+        bbox_radius = np.ceil(3 * sigma).astype(int)
 
         # Integer bounding box
-        z0 = max(0, int(position[0]) - bbox_radius)
-        z1 = min(self.volume_shape[0], int(position[0]) + bbox_radius + 1)
-        y0 = max(0, int(position[1]) - bbox_radius)
-        y1 = min(self.volume_shape[1], int(position[1]) + bbox_radius + 1)
-        x0 = max(0, int(position[2]) - bbox_radius)
-        x1 = min(self.volume_shape[2], int(position[2]) + bbox_radius + 1)
+        z0 = max(0, int(position[0]) - bbox_radius[0])
+        z1 = min(self.volume_shape[0], int(position[0]) + bbox_radius[0] + 1)
+        y0 = max(0, int(position[1]) - bbox_radius[1])
+        y1 = min(self.volume_shape[1], int(position[1]) + bbox_radius[1] + 1)
+        x0 = max(0, int(position[2]) - bbox_radius[2])
+        x1 = min(self.volume_shape[2], int(position[2]) + bbox_radius[2] + 1)
 
         # Skip if bead is outside volume
         if z0 >= z1 or y0 >= y1 or x0 >= x1:
@@ -225,10 +238,14 @@ class BeadRenderer:
         dz = z_grid - position[0]
         dy = y_grid - position[1]
         dx = x_grid - position[2]
-        dist_sq = dz**2 + dy**2 + dx**2
+        dist_sq = (
+            dz**2 / sigma[0]**2 +
+            dy**2 / sigma[1]**2 +
+            dx**2 / sigma[2]**2
+        )
 
-        # 3D Gaussian with configurable sharpness
-        gaussian = intensity * np.exp(-dist_sq / (self.gaussian_sharpness * radius**2))
+        # 3D anisotropic Gaussian with configurable sharpness
+        gaussian = intensity * np.exp(-dist_sq / self.gaussian_sharpness)
 
         # Add to volume (accumulate if overlap)
         volume[z0:z1, y0:y1, x0:x1] += gaussian
