@@ -21,10 +21,45 @@ class BeadGenerator:
     def generate_beads(self):
         """
         Generate random beads with positions, radii, and intensities.
+        If config contains particle_groups, each group supplies num_range,
+        radius_range, and intensity_range.
 
         Returns:
             beads: dict with keys 'positions', 'radii', 'intensities'
         """
+        particle_groups = self.config.get('particle_groups')
+        if particle_groups:
+            group_radii = []
+            group_intensities = []
+            group_ids = []
+
+            for group_idx, group in enumerate(particle_groups):
+                num_min, num_max = group['num_range']
+                num_beads = np.random.randint(int(num_min), int(num_max) + 1)
+
+                radii = self._sample_radii(num_beads, group)
+                intensities = self._sample_intensities(num_beads, group)
+                group_radii.append(radii)
+                group_intensities.append(intensities)
+                group_ids.append(np.full(num_beads, group_idx, dtype=np.int32))
+
+            radii = np.concatenate(group_radii)
+            intensities = np.concatenate(group_intensities)
+            group_ids = np.concatenate(group_ids)
+            num_beads = len(radii)
+            positions = self._generate_positions(num_beads, radii=radii)
+            placed_count = len(positions)
+
+            beads = {
+                'positions': positions,  # (N, 3) array
+                'radii': radii[:placed_count],  # (N,) array
+                'intensities': intensities[:placed_count],  # (N,) array
+                'group_ids': group_ids[:placed_count],  # (N,) array
+                'num_beads': placed_count
+            }
+
+            return beads
+
         # Sample number of beads
         if self.config['count_stratified']:
             # Stratified sampling for uniform density distribution
@@ -67,18 +102,24 @@ class BeadGenerator:
 
         return np.random.randint(tier_min, tier_max + 1)
 
-    def _generate_positions(self, num_beads):
+    def _generate_positions(self, num_beads, radii=None):
         """
         Generate bead positions with minimum distance constraint.
 
         Args:
             num_beads: Number of beads to generate
+            radii: Optional sampled radii for each bead. When provided, the
+                minimum distance constraint uses each bead's actual radius.
 
         Returns:
             positions: (N, 3) array of bead centers
         """
+        if radii is not None:
+            radii = np.asarray(radii)
+
         # Start with random positions
         positions = []
+        placed_radii = []
 
         # Safety margin from boundaries (to avoid edge effects)
         # Can be configured in config, defaults to 5 voxels for backward compatibility
@@ -89,22 +130,33 @@ class BeadGenerator:
 
         attempts = 0
         while len(positions) < num_beads and attempts < max_attempts:
+            bead_idx = len(positions)
+            radius = radii[bead_idx] if radii is not None else None
+
             # Random position
             pos = np.random.rand(3) * (self.volume_shape - 2 * margin) + margin
 
             # Check minimum distance to existing beads
             if len(positions) == 0:
                 positions.append(pos)
+                if radius is not None:
+                    placed_radii.append(radius)
             else:
                 positions_array = np.array(positions)
                 distances = np.linalg.norm(positions_array - pos, axis=1)
 
-                # Minimum distance is a factor of typical radius
-                min_dist = self.config['min_distance_factor'] * \
-                          (self.config['radius_min'] + self.config['radius_max']) / 2
+                if radius is not None:
+                    min_dist = self.config['min_distance_factor'] * \
+                              (np.asarray(placed_radii) + radius)
+                else:
+                    # Minimum distance is a factor of typical radius
+                    min_dist = self.config['min_distance_factor'] * \
+                              (self.config['radius_min'] + self.config['radius_max']) / 2
 
-                if np.min(distances) > min_dist:
+                if np.all(distances > min_dist):
                     positions.append(pos)
+                    if radius is not None:
+                        placed_radii.append(radius)
 
             attempts += 1
 
@@ -114,8 +166,21 @@ class BeadGenerator:
 
         return np.array(positions)
 
-    def _sample_radii(self, num_beads):
-        """Sample bead radii."""
+    def _sample_radii(self, num_beads, radius_range=None):
+        """
+        Sample bead radii.
+
+        Args:
+            num_beads: Number of bead radii to generate
+            radius_range: Optional [min, max] range for a particle group's radius_range.
+        """
+        if isinstance(radius_range, dict):
+            radius_range = radius_range.get('radius_range')
+
+        if radius_range is not None:
+            radius_min, radius_max = radius_range
+            return np.random.uniform(radius_min, radius_max, num_beads)
+
         if self.config['radius_distribution'] == 'lognormal':
             mean = self.config['radius_lognormal_mean']
             std = self.config['radius_lognormal_std']
@@ -131,8 +196,21 @@ class BeadGenerator:
 
         return radii
 
-    def _sample_intensities(self, num_beads):
-        """Sample bead intensities."""
+    def _sample_intensities(self, num_beads, intensity_range=None):
+        """
+        Sample bead intensities.
+
+        Args:
+            num_beads: Number of bead intensities to generate
+            intensity_range: Optional [min, max] range for a particle group's intensity_range.
+        """
+        if isinstance(intensity_range, dict):
+            intensity_range = intensity_range.get('intensity_range')
+
+        if intensity_range is not None:
+            intensity_min, intensity_max = intensity_range
+            return np.random.uniform(intensity_min, intensity_max, num_beads)
+
         intensities = np.random.normal(self.config['intensity_mean'],
                                       self.config['intensity_std'],
                                       num_beads)
@@ -163,15 +241,32 @@ class BeadRenderer:
                 config.get('anisotropy', [1.0, 1.0, 1.0]),
                 dtype=np.float32
             )
+            depth_attenuation = config.get('depth_attenuation', {})
+            self.depth_attenuation_enabled = depth_attenuation.get('enabled', False)
+            self.depth_attenuation_mode = depth_attenuation.get('mode', 'exponential')
+            self.depth_attenuation_decay_rate = float(
+                depth_attenuation.get('decay_rate', 0.0)
+            )
         else:
             self.gaussian_sharpness = 2.0
             self.anisotropy = np.ones(3, dtype=np.float32)
+            self.depth_attenuation_enabled = False
+            self.depth_attenuation_mode = 'exponential'
+            self.depth_attenuation_decay_rate = 0.0
 
         if self.anisotropy.shape != (3,):
             raise ValueError("particles.anisotropy must be [sigma_z, sigma_y, sigma_x]")
 
         if np.any(self.anisotropy <= 0):
             raise ValueError("particles.anisotropy values must be positive")
+
+        if self.depth_attenuation_mode not in ('linear', 'exponential'):
+            raise ValueError(
+                "particles.depth_attenuation.mode must be 'linear' or 'exponential'"
+            )
+
+        if self.depth_attenuation_decay_rate < 0:
+            raise ValueError("particles.depth_attenuation.decay_rate must be non-negative")
 
     def render(self, beads):
         """
@@ -244,6 +339,14 @@ class BeadRenderer:
             dx**2 / sigma[2]**2
         )
 
+        if self.depth_attenuation_enabled:
+            z = position[0]
+            if self.depth_attenuation_mode == 'linear':
+                attenuation = max(0.0, 1.0 - self.depth_attenuation_decay_rate * z)
+            else:
+                attenuation = np.exp(-self.depth_attenuation_decay_rate * z)
+            intensity *= attenuation
+
         # 3D anisotropic Gaussian with configurable sharpness
         gaussian = intensity * np.exp(-dist_sq / self.gaussian_sharpness)
 
@@ -289,5 +392,14 @@ def compute_bead_statistics(beads):
         'volume_fraction': float(volume_fraction),
         'nearest_neighbor_dist': float(nn_dist)
     }
+
+    if 'group_ids' in beads:
+        group_ids = beads['group_ids']
+        unique_group_ids, counts = np.unique(group_ids, return_counts=True)
+        group_counts = {
+            int(group_id): int(count)
+            for group_id, count in zip(unique_group_ids, counts)
+        }
+        stats['group_counts'] = group_counts
 
     return stats

@@ -209,7 +209,14 @@ class QualityChecker:
             stats_text += f"Bead Statistics:\n"
             stats_text += f"  Count: {bs['num_beads']}\n"
             stats_text += f"  Radius: {bs['radius_mean']:.2f}+-{bs['radius_std']:.2f}\n"
-            stats_text += f"  Vol. Frac: {bs['volume_fraction']:.3%}\n\n"
+            stats_text += f"  Vol. Frac: {bs['volume_fraction']:.3%}\n"
+            if 'group_counts' in bs:
+                group_counts = ', '.join(
+                    f"G{group_id}: {count} ({count / bs['num_beads']:.1%})"
+                    for group_id, count in bs['group_counts'].items()
+                )
+                stats_text += f"  Groups: {group_counts}\n"
+            stats_text += "\n"
 
         if 'warp_stats' in sample_data['metadata']:
             ws = sample_data['metadata']['warp_stats']
