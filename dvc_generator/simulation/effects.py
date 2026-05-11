@@ -29,22 +29,27 @@ class ImagingSimulator:
             metadata: dict with applied parameters
         """
         # 1. Apply PSF (blurring)
-        psf_config = self.config['psf']
-        psf_type = psf_config['type']
+        if 'psf' in self.config:
+            psf_config = self.config['psf']
+            psf_type = psf_config['type']
 
-        if psf_type == 'gaussian_isotropic':
-            psf_sigma = float(psf_config['sigma'])
-        elif psf_type == 'gaussian_anisotropic':
-            psf_sigma = (
-                float(psf_config['sigma_z']),
-                float(psf_config['sigma_xy']),
-                float(psf_config['sigma_xy'])
-            )
+            if psf_type == 'gaussian_isotropic':
+                psf_sigma = float(psf_config['sigma'])
+            elif psf_type == 'gaussian_anisotropic':
+                psf_sigma = (
+                    float(psf_config['sigma_z']),
+                    float(psf_config['sigma_xy']),
+                    float(psf_config['sigma_xy'])
+                )
+            else:
+                raise ValueError(
+                    "imaging.psf.type must be 'gaussian_isotropic' or "
+                    "'gaussian_anisotropic'"
+                )
         else:
-            raise ValueError(
-                "imaging.psf.type must be 'gaussian_isotropic' or "
-                "'gaussian_anisotropic'"
-            )
+            psf_type = self.config.get('psf_type', 'gaussian')
+            psf_sigma = np.random.uniform(self.config['psf_sigma_min'],
+                                          self.config['psf_sigma_max'])
 
         volume_blurred = self._apply_psf(volume, psf_sigma)
 
