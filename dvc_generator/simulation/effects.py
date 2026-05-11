@@ -29,8 +29,23 @@ class ImagingSimulator:
             metadata: dict with applied parameters
         """
         # 1. Apply PSF (blurring)
-        psf_sigma = np.random.uniform(self.config['psf_sigma_min'],
-                                      self.config['psf_sigma_max'])
+        psf_config = self.config['psf']
+        psf_type = psf_config['type']
+
+        if psf_type == 'gaussian_isotropic':
+            psf_sigma = float(psf_config['sigma'])
+        elif psf_type == 'gaussian_anisotropic':
+            psf_sigma = (
+                float(psf_config['sigma_z']),
+                float(psf_config['sigma_xy']),
+                float(psf_config['sigma_xy'])
+            )
+        else:
+            raise ValueError(
+                "imaging.psf.type must be 'gaussian_isotropic' or "
+                "'gaussian_anisotropic'"
+            )
+
         volume_blurred = self._apply_psf(volume, psf_sigma)
 
         # 2. Apply photobleaching (optional, for vol1)
@@ -56,7 +71,12 @@ class ImagingSimulator:
         volume_final = np.clip(volume_noisy, 0, 1)
 
         metadata = {
-            'psf_sigma': float(psf_sigma),
+            'psf_type': psf_type,
+            'psf_sigma': (
+                [float(sigma) for sigma in psf_sigma]
+                if isinstance(psf_sigma, tuple)
+                else float(psf_sigma)
+            ),
             'snr_db': float(snr_db),
             'photobleaching_factor': float(bleach_factor),
             'background_mean': float(self.config['background_mean'])
@@ -70,18 +90,13 @@ class ImagingSimulator:
 
         Args:
             volume: (D, H, W) input volume
-            sigma: PSF width (in voxels)
+            sigma: PSF width (in voxels). Can be a scalar for isotropic blur,
+                or (sigma_z, sigma_y, sigma_x) for anisotropic blur.
 
         Returns:
             blurred: (D, H, W) blurred volume
         """
-        if self.config['psf_type'] == 'gaussian':
-            blurred = gaussian_filter(volume, sigma=sigma, mode='nearest')
-        else:
-            # Could implement more realistic PSF (Airy disk) here
-            blurred = gaussian_filter(volume, sigma=sigma, mode='nearest')
-
-        return blurred
+        return gaussian_filter(volume, sigma=sigma, mode='nearest')
 
     def _generate_background(self, shape):
         """

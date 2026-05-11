@@ -81,16 +81,19 @@ particles:
 
   # Defines deformation of bead: [sz, sy, sx]
   anisotropy: [1.0, 1.0, 1.0]
-  # Defines the z-axis depth attenuation.
+  # Defines the z-axis depth attenuation, mode can be linear/exponential.
   depth_attenuation:
     enabled: true
     mode: linear
     decay_rate: 0.01
 
 imaging:
-  psf_type: gaussian
-  psf_sigma_min: 0
-  psf_sigma_max: 0
+  #Defines the z/xy psf, type can be gaussian_isotropic/gaussian_anisotropic
+  psf:
+    type: gaussian_anisotropic
+    sigma: 1.0 #used for isotropic
+    sigma_z: 2.0 #used for anisotropic
+    sigma_xy: 1.0
   noise_type: poisson_gaussian
   snr_db_min: 30
   snr_db_max: 40
